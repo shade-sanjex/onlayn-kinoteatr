@@ -257,6 +257,31 @@ export function SyncPlayer({ url, isHost = false, isAdmin = false }: SyncPlayerP
   // Whether current user can interact with controls
   const controlAllowed = canControl || !playbackLocked;
 
+  // ── Auto-hide controls ───────────────────────────────────────────
+  const [showControls, setShowControls] = useState(true);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const revealControls = useCallback(() => {
+    setShowControls(true);
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    // Hide after 3 seconds of inactivity (only when playing)
+    hideTimerRef.current = setTimeout(() => {
+      setShowControls(false);
+    }, 3000);
+  }, []);
+
+  // Always show when paused
+  useEffect(() => {
+    if (!playing) {
+      setShowControls(true);
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    } else {
+      // Start timer when playback starts
+      revealControls();
+    }
+    return () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current); };
+  }, [playing, revealControls]);
+
   const isInternalChange = useRef(false);
   const isYT = isYouTubeUrl(url);
   const ytId = isYT ? getYouTubeId(url) : null;
@@ -446,7 +471,13 @@ export function SyncPlayer({ url, isHost = false, isAdmin = false }: SyncPlayerP
     <div
       ref={containerRef}
       tabIndex={0}
-      className={`w-full h-full bg-black relative group flex items-center justify-center overflow-hidden shadow-2xl focus:outline-none ${isFullscreen ? '' : 'rounded-3xl border border-white/5'}`}
+      className={`w-full h-full bg-black relative flex items-center justify-center overflow-hidden shadow-2xl focus:outline-none ${isFullscreen ? '' : 'rounded-3xl border border-white/5'}`}
+      style={{ cursor: showControls ? 'default' : 'none' }}
+      onMouseMove={revealControls}
+      onMouseEnter={revealControls}
+      onMouseLeave={() => { if (playing) setShowControls(false); }}
+      onTouchStart={revealControls}
+      onClick={revealControls}
       onDoubleClick={toggleFullscreen}
     >
       {/* ── Video Layer ── */}
@@ -520,9 +551,8 @@ export function SyncPlayer({ url, isHost = false, isAdmin = false }: SyncPlayerP
 
       {/* ── Controls Overlay ── */}
       <div
-        className={`absolute inset-0 z-30 bg-gradient-to-t from-black/95 via-black/10 to-black/50 transition-opacity duration-300
-          ${playing ? 'opacity-0' : 'opacity-100'} group-hover:opacity-100 group-focus:opacity-100
-          flex flex-col justify-end`}
+        className={`absolute inset-0 z-30 bg-gradient-to-t from-black/95 via-black/10 to-black/50 transition-opacity duration-300 flex flex-col justify-end`}
+        style={{ opacity: showControls ? 1 : 0, pointerEvents: showControls ? 'auto' : 'none' }}
       >
         {/* Top-right buttons: lock toggle (host) + keyboard hint */}
         <div className="absolute top-4 right-4 flex items-center gap-2">
