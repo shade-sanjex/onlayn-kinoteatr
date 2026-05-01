@@ -134,7 +134,7 @@ export function VideoChatSidebar() {
   const participantH = 28 + 20 + rows * cardH + (rows - 1) * 8; // header + padding + rows*cardH + gaps
 
   return (
-    <div style={{ width: 320, minWidth: 320, height: '100%', display: 'flex', flexDirection: 'column', background: '#080808', borderLeft: '1px solid rgba(255,255,255,0.05)', overflow: 'hidden' }}>
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: '#080808', overflow: 'hidden' }}>
 
       {/* Toast portal — renders over the whole page */}
       <ChatToastPortal />

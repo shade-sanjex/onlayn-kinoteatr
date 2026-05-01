@@ -88,7 +88,7 @@ export default function Auth() {
       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600/15 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] pointer-events-none" />
 
-      <div className="relative z-10 w-full max-w-md p-8 sm:p-10 bg-white/5 border border-white/10 shadow-2xl backdrop-blur-xl rounded-3xl animate-in fade-in zoom-in-95 duration-500">
+      <div className="relative z-10 w-full max-w-md mx-4 p-6 sm:p-10 bg-white/5 border border-white/10 shadow-2xl backdrop-blur-xl rounded-3xl animate-in fade-in zoom-in-95 duration-500">
         <div className="flex flex-col items-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 mb-4 rounded-2xl bg-gradient-to-br from-purple-600 to-blue-600 shadow-lg shadow-purple-500/30">
             <Play className="w-8 h-8 text-white ml-1" fill="currentColor" />

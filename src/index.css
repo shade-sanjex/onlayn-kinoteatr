@@ -17,7 +17,16 @@ body {
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
   font-family: 'Inter', sans-serif;
+  /* Mobile touch improvements */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
+
+/* Safe area for notched phones */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 
 /* Custom Scrollbar */
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
