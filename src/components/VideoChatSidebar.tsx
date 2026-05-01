@@ -7,8 +7,9 @@ import {
   AudioTrack,
   useLocalParticipant,
   useChat,
+  useRemoteParticipants,
 } from '@livekit/components-react';
-import { Track, LocalParticipant } from 'livekit-client';
+import { Track, LocalParticipant, RemoteParticipant } from 'livekit-client';
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -25,7 +26,6 @@ if (typeof document !== 'undefined') {
 }
 
 // ── Chat toast notification (portal to body) ────────────────────
-// Shows ONLY when player is in fullscreen, and NOT for local user's own messages
 interface ToastMsg { id: string; sender: string; text: string; }
 
 function ChatToastPortal() {
@@ -35,7 +35,6 @@ function ChatToastPortal() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const lastIdRef = useRef<string>('');
 
-  // Track fullscreen state
   useEffect(() => {
     const onFSChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', onFSChange);
@@ -47,23 +46,18 @@ function ChatToastPortal() {
   }, []);
 
   useEffect(() => {
-    if (!isFullscreen) return; // Only show when player is fullscreen
+    if (!isFullscreen) return;
     if (chatMessages.length === 0) return;
-
     const latest = chatMessages[chatMessages.length - 1];
     const msgId = latest.id ?? String(latest.timestamp);
     if (msgId === lastIdRef.current) return;
     lastIdRef.current = msgId;
-
-    // Skip if this message is from the local user (me)
     if (latest.from?.identity === localParticipant?.identity) return;
-
     const toast: ToastMsg = {
       id: msgId,
       sender: latest.from?.name || latest.from?.identity || 'Kimdir',
       text: latest.message,
     };
-
     setToasts(prev => [...prev.slice(-2), toast]);
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== msgId)), 5000);
   }, [chatMessages, isFullscreen, localParticipant]);
@@ -71,39 +65,11 @@ function ChatToastPortal() {
   if (toasts.length === 0) return null;
 
   return createPortal(
-    <div style={{
-      position: 'fixed',
-      bottom: 80,
-      left: 20,
-      zIndex: 99999,
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 8,
-      pointerEvents: 'none',
-    }}>
+    <div style={{ position: 'fixed', bottom: 80, left: 20, zIndex: 99999, display: 'flex', flexDirection: 'column', gap: 8, pointerEvents: 'none' }}>
       {toasts.map((t) => (
-        <div
-          key={t.id}
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 3,
-            background: 'rgba(8,8,8,0.90)',
-            border: '1px solid rgba(168,85,247,0.22)',
-            borderRadius: 12,
-            padding: '8px 12px',
-            maxWidth: 260,
-            backdropFilter: 'blur(14px)',
-            boxShadow: '0 4px 24px rgba(0,0,0,0.7)',
-            animation: 'toastIn 0.22s ease',
-          }}
-        >
-          <span style={{ fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a855f7' }}>
-            💬 {t.sender}
-          </span>
-          <span style={{ fontSize: 12, color: '#e4e4e7', wordBreak: 'break-word', lineHeight: 1.4 }}>
-            {t.text.length > 80 ? t.text.slice(0, 80) + '…' : t.text}
-          </span>
+        <div key={t.id} style={{ display: 'flex', flexDirection: 'column', gap: 3, background: 'rgba(8,8,8,0.90)', border: '1px solid rgba(168,85,247,0.22)', borderRadius: 12, padding: '8px 12px', maxWidth: 260, backdropFilter: 'blur(14px)', boxShadow: '0 4px 24px rgba(0,0,0,0.7)' }}>
+          <span style={{ fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a855f7' }}>💬 {t.sender}</span>
+          <span style={{ fontSize: 12, color: '#e4e4e7', wordBreak: 'break-word', lineHeight: 1.4 }}>{t.text.length > 80 ? t.text.slice(0, 80) + '…' : t.text}</span>
         </div>
       ))}
     </div>,
@@ -111,9 +77,35 @@ function ChatToastPortal() {
   );
 }
 
+// ── Remote audio renderer — subscribes AUDIO tracks for ALL remotes ──
+// This is separate from the video grid so audio is ALWAYS playing
+// regardless of camera state.
+function RemoteAudioRenderer() {
+  const audioTracks = useTracks(
+    [{ source: Track.Source.Microphone, withPlaceholder: false }],
+    { updateOnlyOn: [], onlySubscribed: true },
+  );
+
+  // Filter out local participant tracks — we never want to hear ourselves
+  const remoteAudioTracks = audioTracks.filter(
+    (t) => !(t.participant instanceof LocalParticipant)
+  );
+
+  return (
+    <>
+      {remoteAudioTracks.map((trackRef, i) => (
+        <div key={`audio-${trackRef.participant.sid}-${i}`} style={{ display: 'none' }}>
+          <AudioTrack trackRef={trackRef as any} />
+        </div>
+      ))}
+    </>
+  );
+}
+
 // ── Main sidebar ────────────────────────────────────────────────
 export function VideoChatSidebar() {
-  const tracks = useTracks(
+  // Subscribe to Camera tracks for the video grid
+  const videoTracks = useTracks(
     [{ source: Track.Source.Camera, withPlaceholder: true }],
     { updateOnlyOn: [], onlySubscribed: false },
   );
@@ -122,16 +114,10 @@ export function VideoChatSidebar() {
   const toggleCamera = () => localParticipant.setCameraEnabled(!isCameraEnabled);
   const toggleMic = () => localParticipant.setMicrophoneEnabled(!isMicrophoneEnabled);
 
-  const count = tracks.length;
-
-  // ── Calculate participant section height without scroll ─────
-  // 16:9 cards in 300px available width:
-  //   1 col: card width ~296px → height ~167px
-  //   2 col: card width ~144px → height  ~81px
-  // Add header (28px) + padding (20px)
+  const count = videoTracks.length;
   const cardH = count >= 2 ? 81 : 167;
   const rows = count >= 2 ? Math.ceil(count / 2) : 1;
-  const participantH = 28 + 20 + rows * cardH + (rows - 1) * 8; // header + padding + rows*cardH + gaps
+  const participantH = 28 + 20 + rows * cardH + (rows - 1) * 8;
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: '#080808', overflow: 'hidden' }}>
@@ -139,14 +125,12 @@ export function VideoChatSidebar() {
       {/* Toast portal — renders over the whole page */}
       <ChatToastPortal />
 
-      {/* ── Participants ──────────────────────────────── */}
-      <div style={{
-        flexShrink: 0,
-        height: participantH,
-        padding: '10px',
-        borderBottom: '1px solid rgba(255,255,255,0.05)',
-        overflow: 'hidden',
-      }}>
+      {/* ── AUDIO: Always-on audio renderer (outside video grid) ── */}
+      {/* This ensures audio plays regardless of camera on/off state */}
+      <RemoteAudioRenderer />
+
+      {/* ── Participants (Video grid) ──────────────────────── */}
+      <div style={{ flexShrink: 0, height: participantH, padding: '10px', borderBottom: '1px solid rgba(255,255,255,0.05)', overflow: 'hidden' }}>
         {/* Header row */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#71717a' }}>
@@ -158,12 +142,8 @@ export function VideoChatSidebar() {
         </div>
 
         {/* Grid */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: count >= 2 ? '1fr 1fr' : '1fr',
-          gap: 8,
-        }}>
-          {tracks.map((trackRef: TrackReferenceOrPlaceholder, index: number) => (
+        <div style={{ display: 'grid', gridTemplateColumns: count >= 2 ? '1fr 1fr' : '1fr', gap: 8 }}>
+          {videoTracks.map((trackRef: TrackReferenceOrPlaceholder, index: number) => (
             <ParticipantItem
               key={`${trackRef.participant.sid}_${index}`}
               trackRef={trackRef}
@@ -176,7 +156,6 @@ export function VideoChatSidebar() {
 
       {/* ── Chat ─────────────────────────────────────── */}
       <div style={{ flex: '1 1 0%', display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
-        {/* Label */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 12px 5px', flexShrink: 0 }}>
           <MessageSquare style={{ width: 10, height: 10, color: '#a855f7' }} />
           <span style={{ fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.18em', color: '#71717a' }}>Jonli Chat</span>
@@ -187,35 +166,14 @@ export function VideoChatSidebar() {
       </div>
 
       {/* ── Controls ─────────────────────────────────── */}
-      <div style={{
-        flexShrink: 0,
-        padding: '10px 12px',
-        borderTop: '1px solid rgba(255,255,255,0.05)',
-        background: '#070707',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 10,
-      }}>
-        <ControlBtn
-          onClick={toggleMic}
-          label={isMicrophoneEnabled ? "Mikrofon o'chir" : 'Mikrofon yoq'}
-          danger={!isMicrophoneEnabled}
-        >
+      <div style={{ flexShrink: 0, padding: '10px 12px', borderTop: '1px solid rgba(255,255,255,0.05)', background: '#070707', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+        <ControlBtn onClick={toggleMic} label={isMicrophoneEnabled ? "Mikrofon o'chir" : 'Mikrofon yoq'} danger={!isMicrophoneEnabled}>
           {isMicrophoneEnabled ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
         </ControlBtn>
-        <ControlBtn
-          onClick={toggleCamera}
-          label={isCameraEnabled ? "Kamera o'chir" : 'Kamera yoq'}
-          danger={!isCameraEnabled}
-        >
+        <ControlBtn onClick={toggleCamera} label={isCameraEnabled ? "Kamera o'chir" : 'Kamera yoq'} danger={!isCameraEnabled}>
           {isCameraEnabled ? <Camera className="w-4 h-4" /> : <CameraOff className="w-4 h-4" />}
         </ControlBtn>
-        <ControlBtn
-          alwaysDanger
-          onClick={() => { (localParticipant as any).room?.disconnect(); window.location.href = '/dashboard'; }}
-          label="Chiqish"
-        >
+        <ControlBtn alwaysDanger onClick={() => { (localParticipant as any).room?.disconnect(); window.location.href = '/dashboard'; }} label="Chiqish">
           <PhoneOff className="w-4 h-4" />
         </ControlBtn>
       </div>
@@ -261,7 +219,7 @@ function ControlBtn({
   );
 }
 
-// ── Participant tile ────────────────────────────────────────────
+// ── Participant tile (VIDEO only — audio handled by RemoteAudioRenderer) ─
 function ParticipantItem({
   trackRef, isLocal, compact,
 }: {
@@ -286,7 +244,7 @@ function ParticipantItem({
     el.setAttribute('disablepictureinpicture', '');
   }, []);
 
-  // Attach track
+  // Attach VIDEO track
   useEffect(() => {
     const el = videoRef.current;
     if (!el) return;
@@ -296,6 +254,20 @@ function ParticipantItem({
       return () => { pub.track?.detach(el); };
     }
   }, [trackRef.publication, isCameraOn]);
+
+  // Volume control for this tile (controls the global RemoteAudioRenderer indirectly
+  // by using the AudioTrack volume prop via a hidden per-participant AudioTrack)
+  const remoteParticipants = useRemoteParticipants();
+  const remoteP = !isLocal
+    ? remoteParticipants.find(p => p.sid === trackRef.participant.sid) as RemoteParticipant | undefined
+    : undefined;
+
+  // Find the microphone track reference for this remote participant for per-tile volume
+  const audioTracks = useTracks(
+    [{ source: Track.Source.Microphone, withPlaceholder: false }],
+    { updateOnlyOn: [], onlySubscribed: true },
+  );
+  const myAudioTrack = audioTracks.find(t => t.participant.sid === trackRef.participant.sid);
 
   const avSize = compact ? 32 : 44;
 
@@ -314,7 +286,7 @@ function ParticipantItem({
                 ref={videoRef}
                 autoPlay
                 playsInline
-                muted={isLocal}
+                muted={true}  // Always mute video element — audio comes from AudioTrack below
                 disablePictureInPicture
                 style={{ width: '100%', height: '100%', objectFit: 'cover', transform: isLocal ? 'scaleX(-1)' : 'none' }}
               />
@@ -330,10 +302,10 @@ function ParticipantItem({
             )}
           </div>
 
-          {/* Remote audio */}
-          {!isLocal && isMicOn && (
+          {/* Per-tile audio with volume control (hidden, for remote only) */}
+          {!isLocal && myAudioTrack && remoteP && (
             <div style={{ display: 'none' }}>
-              <AudioTrack trackRef={trackRef as any} volume={muted ? 0 : volume} />
+              <AudioTrack trackRef={myAudioTrack as any} volume={muted ? 0 : volume} />
             </div>
           )}
 
@@ -345,19 +317,11 @@ function ParticipantItem({
 
           {/* Mic + Camera badges — top right */}
           <div style={{ position: 'absolute', top: 4, right: 4, display: 'flex', alignItems: 'center', gap: 3 }}>
-            {/* Camera badge */}
             <div style={{ background: isCameraOn ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', border: `1px solid ${isCameraOn ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`, borderRadius: 5, padding: '2px 3px', display: 'flex', alignItems: 'center' }}>
-              {isCameraOn
-                ? <Camera style={{ width: 8, height: 8, color: '#4ade80' }} />
-                : <CameraOff style={{ width: 8, height: 8, color: '#f87171' }} />
-              }
+              {isCameraOn ? <Camera style={{ width: 8, height: 8, color: '#4ade80' }} /> : <CameraOff style={{ width: 8, height: 8, color: '#f87171' }} />}
             </div>
-            {/* Mic badge */}
             <div style={{ background: isMicOn ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)', border: `1px solid ${isMicOn ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`, borderRadius: 5, padding: '2px 3px', display: 'flex', alignItems: 'center' }}>
-              {isMicOn
-                ? <Mic style={{ width: 8, height: 8, color: '#4ade80' }} />
-                : <MicOff style={{ width: 8, height: 8, color: '#f87171' }} />
-              }
+              {isMicOn ? <Mic style={{ width: 8, height: 8, color: '#4ade80' }} /> : <MicOff style={{ width: 8, height: 8, color: '#f87171' }} />}
             </div>
           </div>
 
@@ -367,17 +331,11 @@ function ParticipantItem({
               className="translate-y-full group-hover:translate-y-0 transition-transform duration-200"
               style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '6px 8px', background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)', display: 'flex', alignItems: 'center', gap: 6 }}
             >
-              <button
-                onClick={() => setMuted(!muted)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: muted ? '#f87171' : '#a1a1aa', flexShrink: 0 }}
-              >
+              <button onClick={() => setMuted(!muted)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: muted ? '#f87171' : '#a1a1aa', flexShrink: 0 }}>
                 {muted ? <VolumeX style={{ width: 11, height: 11 }} /> : <Volume2 style={{ width: 11, height: 11 }} />}
               </button>
               <input
-                type="range"
-                min={0}
-                max={1}
-                step="any"
+                type="range" min={0} max={1} step="any"
                 value={muted ? 0 : volume}
                 onChange={e => { setVolume(parseFloat(e.target.value)); setMuted(false); }}
                 style={{ flex: 1, height: 2, accentColor: '#a855f7', cursor: 'pointer' }}
