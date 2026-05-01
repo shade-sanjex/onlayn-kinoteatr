@@ -1,0 +1,241 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #a855f7;
+  --color-secondary: #050505;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background-color: #050505;
+  color: white;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  font-family: 'Inter', sans-serif;
+}
+
+/* Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 10px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
+
+/* ═══════════════════════════════════════
+   LIVEKIT CHAT — complete override
+═══════════════════════════════════════ */
+
+/* Disable ALL PiP / floating windows LiveKit might inject */
+.lk-focus-layout,
+.lk-focus-layout-wrapper,
+.lk-participant-placeholder,
+video::-webkit-media-controls-overlay-play-button,
+.lk-pip-track,
+.lk-pip-window {
+  display: none !important;
+}
+
+/* Root chat wrapper */
+.lk-chat {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  background: transparent !important;
+  border: none !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+}
+
+/* Hide default header */
+.lk-chat-header {
+  display: none !important;
+}
+
+/* Messages scroll list */
+.lk-chat-messages {
+  flex: 1 1 0% !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 10px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.08) transparent;
+}
+.lk-chat-messages::-webkit-scrollbar { width: 3px; }
+.lk-chat-messages::-webkit-scrollbar-track { background: transparent; }
+.lk-chat-messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+
+/* 
+  ── STRATEGY ──────────────────────────────────
+  <li class="lk-chat-entry"> = the bubble itself
+  Children (<span name>, <div body>) = bare text, no extra box
+  ──────────────────────────────────────────────
+*/
+
+/* THE BUBBLE */
+.lk-chat-entry {
+  display: block !important;
+  list-style: none !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  background: rgba(255,255,255,0.04) !important;
+  border: 1px solid rgba(255,255,255,0.06) !important;
+  border-radius: 12px !important;
+  padding: 7px 11px !important;
+  margin: 0 !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+}
+
+/* Reset ALL direct children — no double boxes */
+.lk-chat-entry > span,
+.lk-chat-entry > div,
+.lk-chat-entry > article,
+.lk-chat-entry > p {
+  display: block !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+}
+
+/* Sender name — purple, small caps */
+.lk-chat-participant-name {
+  display: block !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 0 3px 0 !important;
+  font-size: 0.63rem !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.08em !important;
+  color: #a855f7 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* Timestamp after name */
+.lk-message-timestamp {
+  font-size: 0.58rem !important;
+  font-weight: 400 !important;
+  color: rgba(255,255,255,0.22) !important;
+  margin-left: 5px !important;
+  letter-spacing: 0 !important;
+}
+
+/* Message body text */
+.lk-message-body {
+  display: block !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  font-size: 0.83rem !important;
+  line-height: 1.5 !important;
+  color: #d4d4d8 !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  white-space: pre-wrap !important;
+}
+
+/* Message form row */
+.lk-chat-form {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 8px 10px !important;
+  background: rgba(0,0,0,0.3) !important;
+  border-top: 1px solid rgba(255,255,255,0.05) !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  flex-shrink: 0 !important;
+}
+
+.lk-chat-form input,
+.lk-chat-form input[type="text"] {
+  flex: 1 1 0% !important;
+  min-width: 0 !important;
+  width: 0 !important;
+  background: rgba(255,255,255,0.04) !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+  border-radius: 10px !important;
+  padding: 9px 12px !important;
+  font-size: 0.82rem !important;
+  color: white !important;
+  outline: none !important;
+  box-sizing: border-box !important;
+}
+.lk-chat-form input:focus {
+  border-color: rgba(168,85,247,0.4) !important;
+}
+.lk-chat-form input::placeholder {
+  color: rgba(255,255,255,0.25) !important;
+}
+
+.lk-chat-form button {
+  flex-shrink: 0 !important;
+  background: #a855f7 !important;
+  border: none !important;
+  border-radius: 10px !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+  font-size: 0.65rem !important;
+  letter-spacing: 0.05em !important;
+  padding: 9px 14px !important;
+  color: white !important;
+  cursor: pointer !important;
+  white-space: nowrap !important;
+}
+.lk-chat-form button:hover {
+  background: #9333ea !important;
+}
+
+/* ═══════════════════════════════════════
+   HIDE LIVEKIT DEFAULT CONTROLS & PiP
+═══════════════════════════════════════ */
+.lk-control-bar { display: none !important; }
+.lk-room-audio-renderer { display: none !important; }
+
+/* Hide PiP button on videos */
+video::-webkit-media-controls-panel { display: none !important; }
+video::-webkit-media-controls { display: none !important; }
+
+/* LiveKit tooltip */
+.lk-tooltip {
+  font-size: 0.62rem !important;
+  padding: 3px 8px !important;
+  max-width: 130px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  z-index: 9999 !important;
+}
+
+/* ── Chat toast slide-in animation ───────────── */
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
