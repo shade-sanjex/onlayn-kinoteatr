@@ -25,7 +25,7 @@ export function ServerManagementModal({ isOpen, onClose }: ServerManagementModal
     try {
       // Supabase Storage list files is a bit tricky with nested folders
       // We'll try to list all files in the 'videos' bucket
-      const { data, error } = await supabase.storage.from('videos').list('', {
+      const { error } = await supabase.storage.from('videos').list('', {
         limit: 100,
         offset: 0,
         sortBy: { column: 'name', order: 'desc' },

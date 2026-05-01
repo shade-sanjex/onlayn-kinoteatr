@@ -179,7 +179,7 @@ export default function Room() {
     }
   };
 
-  const handleJoinRequest = async (requestId: string, accept: boolean, userId: string) => {
+  const handleJoinRequest = async (requestId: string, accept: boolean, _userId: string) => {
     if (accept) {
       await supabase.from('room_join_requests').update({ status: 'approved' }).eq('id', requestId);
       // Also add as friend automatically if private room
@@ -189,7 +189,7 @@ export default function Room() {
     fetchJoinRequests();
   };
 
-  const inviteFriend = async (friendId: string, friendName: string) => {
+  const inviteFriend = async (_friendId: string, friendName: string) => {
     // Send a notification or direct room link — here we just copy the link
     const link = `${window.location.origin}/room/${roomId}`;
     try {

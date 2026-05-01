@@ -25,6 +25,7 @@ interface Window {
         events?: {
           onReady?: (e: any) => void;
           onStateChange?: (e: any) => void;
+          onError?: (e: any) => void;
         };
       }
     ) => any;

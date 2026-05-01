@@ -7,7 +7,6 @@ import {
   Users, 
   Play, 
   ShieldCheck, 
-  Settings, 
   LogOut, 
   Loader2, 
   Video, 
@@ -164,7 +163,7 @@ export default function Dashboard() {
 
       {/* Modals */}
       {showProfileModal && <ProfileModal profile={userProfile} onClose={() => setShowProfileModal(false)} onUpdate={fetchData} />}
-      {showServerModal && <ServerManagementModal onClose={() => setShowServerModal(false)} />}
+      {showServerModal && <ServerManagementModal isOpen={showServerModal} onClose={() => setShowServerModal(false)} />}
     </div>
   );
 }

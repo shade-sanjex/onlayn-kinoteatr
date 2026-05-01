@@ -9,7 +9,7 @@ import {
   useChat,
 } from '@livekit/components-react';
 import { Track, LocalParticipant } from 'livekit-client';
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Volume2, VolumeX, Mic, MicOff, Camera, CameraOff,
@@ -213,7 +213,7 @@ export function VideoChatSidebar() {
         </ControlBtn>
         <ControlBtn
           alwaysDanger
-          onClick={() => { localParticipant.room?.disconnect(); window.location.href = '/dashboard'; }}
+          onClick={() => { (localParticipant as any).room?.disconnect(); window.location.href = '/dashboard'; }}
           label="Chiqish"
         >
           <PhoneOff className="w-4 h-4" />
@@ -333,7 +333,7 @@ function ParticipantItem({
           {/* Remote audio */}
           {!isLocal && isMicOn && (
             <div style={{ display: 'none' }}>
-              <AudioTrack trackRef={trackRef} volume={muted ? 0 : volume} />
+              <AudioTrack trackRef={trackRef as any} volume={muted ? 0 : volume} />
             </div>
           )}
 

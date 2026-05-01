@@ -9,7 +9,6 @@ import {
   Check, 
   X, 
   User as UserIcon, 
-  Loader2,
   Clock
 } from 'lucide-react';
 
@@ -21,7 +20,8 @@ export default function Friends() {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [friends, setFriends] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [_loading, setLoading] = useState(false);
+
 
   useEffect(() => {
     if (user) {

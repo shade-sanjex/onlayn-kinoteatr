@@ -44,7 +44,7 @@ interface NativePlayerProps {
   onPlay: () => void;
   onPause: () => void;
   onError: (msg: string) => void;
-  videoRef: React.RefObject<HTMLVideoElement>;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
 }
 
 function NativePlayer({
@@ -121,7 +121,7 @@ function YouTubePlayer({
   ytRef
 }: YouTubePlayerProps) {
   const iframeRef = useRef<HTMLDivElement>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval>>();
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Store callbacks in refs so the stale-closure-safe useEffect can call them
   const cbReady = useRef(onReady); cbReady.current = onReady;
@@ -206,7 +206,7 @@ function YouTubePlayer({
 
     return () => {
       mounted = false;
-      clearInterval(intervalRef.current);
+      if (intervalRef.current !== null) clearInterval(intervalRef.current);
       try { ytRef.current?.destroy?.(); } catch {}
       ytRef.current = null;
     };
