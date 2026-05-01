@@ -15,6 +15,8 @@ import {
 
 interface SyncPlayerProps {
   url: string;
+  isHost?: boolean;
+  isAdmin?: boolean;
 }
 
 function isYouTubeUrl(url: string) {
@@ -231,7 +233,8 @@ function YouTubePlayer({
 // ──────────────────────────────────────────────────────────────────────────────
 // Main SyncPlayer
 // ──────────────────────────────────────────────────────────────────────────────
-export function SyncPlayer({ url }: SyncPlayerProps) {
+export function SyncPlayer({ url, isHost = false, isAdmin = false }: SyncPlayerProps) {
+  const canControl = isHost || isAdmin;
   const room = useRoomContext();
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -249,6 +252,10 @@ export function SyncPlayer({ url }: SyncPlayerProps) {
   const [ready, setReady] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const [playerError, setPlayerError] = useState<string | null>(null);
+  // Playback lock — when true, only host/admin can control play/pause/seek
+  const [playbackLocked, setPlaybackLocked] = useState(false);
+  // Whether current user can interact with controls
+  const controlAllowed = canControl || !playbackLocked;
 
   const isInternalChange = useRef(false);
   const isYT = isYouTubeUrl(url);
@@ -296,6 +303,9 @@ export function SyncPlayer({ url }: SyncPlayerProps) {
     const handleData = (payload: Uint8Array) => {
       try {
         const msg = JSON.parse(new TextDecoder().decode(payload));
+        // Lock/unlock events — apply to everyone
+        if (msg.type === 'lock') { setPlaybackLocked(true); return; }
+        if (msg.type === 'unlock') { setPlaybackLocked(false); return; }
         isInternalChange.current = true;
         if (msg.type === 'play') {
           if (Math.abs(getCurrentTime() - msg.time) > 2) seekTo(msg.time);
@@ -316,10 +326,19 @@ export function SyncPlayer({ url }: SyncPlayerProps) {
 
   // ── Toggle play ─────────────────────────────────────────────────────────────
   const togglePlay = useCallback(() => {
+    if (!controlAllowed) return; // blocked for non-host when locked
     const next = !playing;
     setPlaying(next);
     broadcastState({ type: next ? 'play' : 'pause', time: getCurrentTime() });
-  }, [playing, broadcastState, getCurrentTime]);
+  }, [playing, broadcastState, getCurrentTime, controlAllowed]);
+
+  // ── Toggle playback lock (host only) ────────────────────────────────────────
+  const toggleLock = useCallback(() => {
+    if (!canControl) return;
+    const next = !playbackLocked;
+    setPlaybackLocked(next);
+    broadcastState({ type: next ? 'lock' : 'unlock', time: 0 });
+  }, [canControl, playbackLocked, broadcastState]);
 
   // ── Progress handler ────────────────────────────────────────────────────────
   const handleProgress = useCallback((p: number, ps: number) => {
@@ -331,10 +350,12 @@ export function SyncPlayer({ url }: SyncPlayerProps) {
 
   // ── Seek bar ────────────────────────────────────────────────────────────────
   const handleSeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!controlAllowed) return;
     setPlayed(parseFloat(e.target.value));
   };
-  const handleSeekMouseDown = () => setSeeking(true);
+  const handleSeekMouseDown = () => { if (controlAllowed) setSeeking(true); };
   const handleSeekMouseUp = (e: React.MouseEvent<HTMLInputElement>) => {
+    if (!controlAllowed) return;
     setSeeking(false);
     const frac = parseFloat((e.target as HTMLInputElement).value);
     const time = frac * duration;
@@ -360,7 +381,6 @@ export function SyncPlayer({ url }: SyncPlayerProps) {
   // ── Keyboard shortcuts ──────────────────────────────────────────────────────
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      // Don't fire if focused in an input/textarea
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
 
@@ -368,7 +388,7 @@ export function SyncPlayer({ url }: SyncPlayerProps) {
         case 'Space':
         case 'KeyK':
           e.preventDefault();
-          togglePlay();
+          if (controlAllowed) togglePlay();
           break;
         case 'KeyF':
           e.preventDefault();
@@ -379,11 +399,13 @@ export function SyncPlayer({ url }: SyncPlayerProps) {
           setMuted(m => !m);
           break;
         case 'ArrowRight':
+          if (!controlAllowed) break;
           e.preventDefault();
           seekTo(Math.min(getCurrentTime() + 10, duration));
           broadcastState({ type: 'seek', time: Math.min(getCurrentTime() + 10, duration) });
           break;
         case 'ArrowLeft':
+          if (!controlAllowed) break;
           e.preventDefault();
           seekTo(Math.max(getCurrentTime() - 10, 0));
           broadcastState({ type: 'seek', time: Math.max(getCurrentTime() - 10, 0) });
@@ -400,7 +422,7 @@ export function SyncPlayer({ url }: SyncPlayerProps) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [togglePlay, toggleFullscreen, seekTo, getCurrentTime, duration, broadcastState]);
+  }, [togglePlay, toggleFullscreen, seekTo, getCurrentTime, duration, broadcastState, controlAllowed]);
 
   // ── Format time ─────────────────────────────────────────────────────────────
   const formatTime = (seconds: number) => {
@@ -488,20 +510,49 @@ export function SyncPlayer({ url }: SyncPlayerProps) {
         </div>
       )}
 
+      {/* ── Lock overlay for non-host when locked ── */}
+      {playbackLocked && !controlAllowed && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 bg-black/70 backdrop-blur-sm border border-orange-500/30 text-orange-400 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider pointer-events-none">
+          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" /></svg>
+          Host boshqarmoqda
+        </div>
+      )}
+
       {/* ── Controls Overlay ── */}
       <div
         className={`absolute inset-0 z-30 bg-gradient-to-t from-black/95 via-black/10 to-black/50 transition-opacity duration-300
           ${playing ? 'opacity-0' : 'opacity-100'} group-hover:opacity-100 group-focus:opacity-100
           flex flex-col justify-end`}
       >
-        {/* Keyboard hint */}
-        <button
-          onClick={() => setShowHint(h => !h)}
-          className="absolute top-4 right-4 p-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-500 hover:text-white transition-all"
-          title="Klaviatura yorliqlari"
-        >
-          <Keyboard className="w-4 h-4" />
-        </button>
+        {/* Top-right buttons: lock toggle (host) + keyboard hint */}
+        <div className="absolute top-4 right-4 flex items-center gap-2">
+          {canControl && (
+            <button
+              onClick={toggleLock}
+              className={`p-2 rounded-xl transition-all text-xs font-black flex items-center gap-1.5 ${
+                playbackLocked
+                  ? 'bg-orange-500/20 border border-orange-500/40 text-orange-400 hover:bg-orange-500/30'
+                  : 'bg-white/5 hover:bg-white/10 text-zinc-500 hover:text-white border border-transparent'
+              }`}
+              title={playbackLocked ? "Nazoratni ochish" : "Faqat men boshqaraman"}
+            >
+              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                {playbackLocked
+                  ? <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                  : <path d="M10 2a5 5 0 00-5 5v2a2 2 0 00-2 2v5a2 2 0 002 2h10a2 2 0 002-2v-5a2 2 0 00-2-2H7V7a3 3 0 015.905-.75 1 1 0 001.937-.5A5.002 5.002 0 0010 2z" />
+                }
+              </svg>
+              <span className="text-[9px]">{playbackLocked ? 'Qulflangan' : 'Qulfla'}</span>
+            </button>
+          )}
+          <button
+            onClick={() => setShowHint(h => !h)}
+            className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-500 hover:text-white transition-all"
+            title="Klaviatura yorliqlari"
+          >
+            <Keyboard className="w-4 h-4" />
+          </button>
+        </div>
 
         {showHint && (
           <div className="absolute top-14 right-4 bg-black/90 border border-white/10 rounded-2xl p-4 text-[10px] text-zinc-300 space-y-1.5 font-mono z-40 backdrop-blur-md">
@@ -565,8 +616,13 @@ export function SyncPlayer({ url }: SyncPlayerProps) {
               {/* Play / Pause — big button */}
               <button
                 onClick={togglePlay}
-                className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-black hover:scale-110 transition-transform shadow-xl"
-                title="Play/Pause (Space)"
+                disabled={!controlAllowed}
+                className={`w-12 h-12 rounded-full flex items-center justify-center transition-transform shadow-xl ${
+                  controlAllowed
+                    ? 'bg-white text-black hover:scale-110 cursor-pointer'
+                    : 'bg-zinc-700 text-zinc-500 cursor-not-allowed opacity-50'
+                }`}
+                title={controlAllowed ? 'Play/Pause (Space)' : 'Faqat host boshqaradi'}
               >
                 {playing
                   ? <Pause className="w-6 h-6" fill="currentColor" />

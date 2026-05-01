@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Search, Upload, Link as LinkIcon, Loader2, Play, Trash2, CheckCircle2 } from 'lucide-react';
+import { Search, Upload, Link as LinkIcon, Loader2, Play, Trash2, CheckCircle2, ShieldAlert } from 'lucide-react';
 
 interface VideoManagerProps {
   roomId: string;
@@ -33,6 +33,59 @@ export function VideoManager({ roomId, isHost, isAdmin, currentVideoUrl }: Video
       }
     } catch (err) {
       console.error('YouTube search error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Admin: delete ALL uploaded videos from storage and clear all rooms
+  const handleDeleteAllVideos = async () => {
+    if (!window.confirm(
+      '⚠️ DIQQAT!\n\nBarcha serverga yuklangan videolar o\'chiriladi va xonalardagi video manzillar tozalanadi.\n\nDavom etasizmi?'
+    )) return;
+    setLoading(true);
+    try {
+      // 1. List all files in storage bucket 'videos'
+      const { data: files, error: listErr } = await supabase.storage
+        .from('videos')
+        .list('', { limit: 1000, offset: 0, sortBy: { column: 'name', order: 'asc' } });
+
+      if (listErr) throw listErr;
+
+      // Also list per-user folders
+      if (files && files.length > 0) {
+        const toDelete: string[] = [];
+        for (const item of files) {
+          if (item.id) {
+            // File directly in root
+            toDelete.push(item.name);
+          } else {
+            // Folder — list inside
+            const { data: inner } = await supabase.storage
+              .from('videos')
+              .list(item.name, { limit: 1000 });
+            if (inner) {
+              inner.forEach(f => { if (f.id) toDelete.push(`${item.name}/${f.name}`); });
+            }
+          }
+        }
+        if (toDelete.length > 0) {
+          const { error: delErr } = await supabase.storage.from('videos').remove(toDelete);
+          if (delErr) throw delErr;
+        }
+      }
+
+      // 2. Clear video_url on ALL rooms that have one
+      const { error: roomErr } = await supabase
+        .from('rooms')
+        .update({ video_url: null })
+        .not('video_url', 'is', null);
+      if (roomErr) throw roomErr;
+
+      setSuccessMsg('Barcha videolar tozalandi!');
+      setTimeout(() => setSuccessMsg(null), 3000);
+    } catch (err: any) {
+      alert('Xatolik: ' + err.message);
     } finally {
       setLoading(false);
     }
@@ -213,12 +266,27 @@ export function VideoManager({ roomId, isHost, isAdmin, currentVideoUrl }: Video
       
       {currentVideoUrl && (
         <div className="p-4 bg-red-500/5 border-t border-white/5">
-          <button 
+          <button
             onClick={() => updateRoomVideo(null)}
             className="w-full py-3 text-red-500 hover:bg-red-500 hover:text-white transition-all rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2"
           >
-            <Trash2 className="w-4 h-4" /> Videoni butunlay o'chirish
+            <Trash2 className="w-4 h-4" /> Hozirgi videoni o'chirish
           </button>
+        </div>
+      )}
+
+      {/* Admin-only: wipe entire storage */}
+      {isAdmin && (
+        <div className="p-4 bg-red-900/10 border-t border-red-500/10">
+          <button
+            onClick={handleDeleteAllVideos}
+            disabled={loading}
+            className="w-full py-3 text-red-400 hover:bg-red-600 hover:text-white transition-all rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 border border-red-500/20"
+          >
+            <ShieldAlert className="w-4 h-4" />
+            Admin: Barcha videolarni o'chirish
+          </button>
+          <p className="text-[9px] text-zinc-600 text-center mt-1.5 uppercase tracking-widest">Server xotirasi tozalanadi</p>
         </div>
       )}
     </div>

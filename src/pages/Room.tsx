@@ -299,7 +299,7 @@ export default function Room() {
             <main className="flex-1 relative flex flex-col overflow-hidden bg-black/40 p-3 sm:p-4">
               <div className="flex-1 flex flex-col min-h-0 relative rounded-[32px] overflow-hidden shadow-2xl">
                 <ErrorBoundary>
-                   <SyncPlayer url={roomData.video_url} />
+                   <SyncPlayer url={roomData.video_url} isHost={isHost} isAdmin={isAdmin} />
                 </ErrorBoundary>
 
                 {!roomData.video_url && !showManager && (
